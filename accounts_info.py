@@ -6,21 +6,19 @@ org = session.client('organizations')
 
 def lambda_handler(event, context):
     ou = os.environ['orgUnit']
-    results = Accounts(ou).active_accounts
+    accountHandler = Accounts(ou)
+    results = { "accounts" : accountHandler.active_accounts, "orgUnits" : accountHandler.orgUnits}
     print("Results: {}".format(results))
     return results
     
 class Accounts(object):
     
     def __init__(self, environment):
-        # Returns only accounts with a status of active.
-        self.all_accounts = []
 
         # Returns only accounts with a status of active.
         self.active_accounts = []
-        
-        # Returns only the accounts with a status of suspended.
-        self.suspended_accounts = []
+
+        self.orgUnits = {}
 
         self.fetch_accounts(environment)
         return
@@ -32,6 +30,8 @@ class Accounts(object):
         rootOrgUnit = org.list_roots()
 
         if self.environment.lower() == 'all' or self.environment.lower() == 'root':
+            # requestObject = {}
+            # self.fetchOrgRecord(requestObject)
             self.envOrgUnitsSelection(rootOrgUnit, 'Roots')
         else:
             myOrgUnit = org.list_organizational_units_for_parent(
@@ -65,24 +65,23 @@ class Accounts(object):
 
     
     def accountsByOrg(self,  orgUnit):
-        accounts = org.list_accounts_for_parent(ParentId = orgUnit['Id'])
+        parentId = orgUnit['Id']
+        parentOrgName = orgUnit['Name']
+        self.orgUnits[parentId] = orgUnit
+        
+        accounts = org.list_accounts_for_parent(ParentId = parentId)
         for ids in accounts['Accounts']:
-            acctInfo = {'Name': ids['Name'], 'ID': ids['Id'], 'Status': ids['Status']}
+            acctInfo = {'Name': ids['Name'], 'ID': ids['Id'], 'Status': ids['Status'], 'ParentId' : parentId, 'ParentOrgName' : parentOrgName}
 
             isExisting = self.accountExists(self.active_accounts, acctInfo)
-            print("isExisting = {}".format(isExisting))
+            
             # add identified records to all accounts
             if not isExisting:
-                
-                if 'all' == self.environment.lower():
-                    self.all_accounts.append(acctInfo)
                 
                 #if all accounts are requested, collect accounts by status also
                 #if accounts are requested by status then only collect active or suspended account data
                 if ids['Status'] != 'SUSPENDED':
                     self.active_accounts.append(acctInfo)
-                else:
-                    self.suspended_accounts.append(acctInfo)
             
             childOrgUnits = org.list_organizational_units_for_parent(
                     ParentId = orgUnit['Id'])
