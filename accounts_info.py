@@ -32,45 +32,25 @@ class Accounts(object):
         rootOrgUnit = org.list_roots()
 
         if self.environment.lower() == 'all' or self.environment.lower() == 'root':
-            requestObject = {}
-            self.fetchOrgRecord(requestObject)
+            self.envOrgUnitsSelection(rootOrgUnit, 'Roots')
         else:
             myOrgUnit = org.list_organizational_units_for_parent(
                 ParentId = rootOrgUnit['Roots'][0]['Id'])
-            self.envOrgUnitsSelection(myOrgUnit)
+            self.envOrgUnitsSelection(myOrgUnit, 'OrganizationalUnits')
             
         return
-
-    # for each account fetch child accounts if available
-    def fetchOrgRecord(self, requestObject):
-        organizations = org.list_accounts(**requestObject)
-
-        # the result organizations is a dictionary. pick only accounts from them
-        for accountRecord in organizations['Accounts']:
-            acctInfo = {'Name': accountRecord['Name'], 'ID': accountRecord['Id'], 'Status': accountRecord['Status']}
-
-            # add identified records to all accounts
-            self.all_accounts.append(acctInfo)
-
-            #if all accounts are requested, collect accounts by status also
-            #if accounts are requested by status then only collect active or suspended account data
-            if accountRecord['Status'] != 'SUSPENDED':
-                self.active_accounts.append(acctInfo)
-
-            else:
-                self.suspended_accounts.append(acctInfo)    
-
-        # when NextToken value exists prep for the next call
-        if 'NextToken' in organizations :
-            requestObject['NextToken'] = organizations["NextToken"]
             
-            #call list accounts with next token - a recursive function
-            self.fetchOrgRecord(requestObject)  
-            
-
-    def envOrgUnitsSelection(self, myOrgUnit):
+    def accountExists(self, accounts, newAcct):
+        exists = False
+        for account in accounts:
+            if account['Name'] == newAcct['Name'] and account['ID'] == newAcct['ID']:
+                exists = True
+                break
+        return exists
         
-        for orgUnit in myOrgUnit['OrganizationalUnits']:
+    def envOrgUnitsSelection(self, myOrgUnit, key):
+        
+        for orgUnit in myOrgUnit[key]:
             
             if orgUnit['Name'].lower() == self.environment.lower() or 'all' == self.environment.lower():
                 #identify all accounts within child org
@@ -81,7 +61,7 @@ class Accounts(object):
                 childOrgUnit = org.list_organizational_units_for_parent(
                     ParentId = orgUnit['Id'])
                     
-                self.envOrgUnitsSelection(childOrgUnit)
+                self.envOrgUnitsSelection(childOrgUnit, 'OrganizationalUnits')
 
     
     def accountsByOrg(self,  orgUnit):
@@ -89,15 +69,20 @@ class Accounts(object):
         for ids in accounts['Accounts']:
             acctInfo = {'Name': ids['Name'], 'ID': ids['Id'], 'Status': ids['Status']}
 
-            if 'all' == self.environment.lower():
-                self.all_accounts.append(acctInfo)
-            
-            #if all accounts are requested, collect accounts by status also
-            #if accounts are requested by status then only collect active or suspended account data
-            if ids['Status'] != 'SUSPENDED':
-                self.active_accounts.append(acctInfo)
-            else:
-                self.suspended_accounts.append(acctInfo)
+            isExisting = self.accountExists(self.active_accounts, acctInfo)
+            print("isExisting = {}".format(isExisting))
+            # add identified records to all accounts
+            if not isExisting:
+                
+                if 'all' == self.environment.lower():
+                    self.all_accounts.append(acctInfo)
+                
+                #if all accounts are requested, collect accounts by status also
+                #if accounts are requested by status then only collect active or suspended account data
+                if ids['Status'] != 'SUSPENDED':
+                    self.active_accounts.append(acctInfo)
+                else:
+                    self.suspended_accounts.append(acctInfo)
             
             childOrgUnits = org.list_organizational_units_for_parent(
                     ParentId = orgUnit['Id'])
