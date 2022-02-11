@@ -12,12 +12,9 @@ def lambda_handler(event, context):
     return results
     
 class Accounts(object):
-    
     def __init__(self, environment):
-
         # Returns only accounts with a status of active.
         self.active_accounts = []
-
         self.orgUnits = {}
 
         self.fetch_accounts(environment)
@@ -26,7 +23,6 @@ class Accounts(object):
     def fetch_accounts(self, environment):
         # Specify which you want returned 
         self.environment = environment
-        
         rootOrgUnit = org.list_roots()
 
         if self.environment.lower() == 'all' or self.environment.lower() == 'root':
@@ -49,20 +45,17 @@ class Accounts(object):
         return exists
         
     def envOrgUnitsSelection(self, myOrgUnit, key):
-        
         for orgUnit in myOrgUnit[key]:
             
             if orgUnit['Name'].lower() == self.environment.lower() or 'all' == self.environment.lower():
                 #identify all accounts within child org
                 self.accountsByOrg(orgUnit)
-                
             else:
                 # seek the environment through the hierarchy till its found
                 childOrgUnit = org.list_organizational_units_for_parent(
                     ParentId = orgUnit['Id'])
                     
                 self.envOrgUnitsSelection(childOrgUnit, 'OrganizationalUnits')
-
     
     def accountsByOrg(self,  orgUnit):
         parentId = orgUnit['Id']
@@ -73,11 +66,9 @@ class Accounts(object):
         for ids in accounts['Accounts']:
             acctInfo = {'Name': ids['Name'], 'ID': ids['Id'], 'Status': ids['Status'], 'ParentId' : parentId, 'ParentOrgName' : parentOrgName}
 
-            isExisting = self.accountExists(self.active_accounts, acctInfo)
-            
             # add identified records to all accounts
+            isExisting = self.accountExists(self.active_accounts, acctInfo)
             if not isExisting:
-                
                 #if all accounts are requested, collect accounts by status also
                 #if accounts are requested by status then only collect active or suspended account data
                 if ids['Status'] != 'SUSPENDED':
