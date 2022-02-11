@@ -7,7 +7,7 @@ org = session.client('organizations')
 def lambda_handler(event, context):
     ou = os.environ['orgUnit']
     accountHandler = Accounts(ou)
-    results = { "accounts" : accountHandler.active_accounts, "orgUnits" : accountHandler.orgUnits}
+    results = { "accounts" : accountHandler.active_accounts, "rootOrg" : accountHandler.rootOrgUnits, "childorgUnits" : accountHandler.childOrgUnits}
     print("Results: {}".format(results))
     return results
     
@@ -15,7 +15,8 @@ class Accounts(object):
     def __init__(self, environment):
         # Returns only accounts with a status of active.
         self.active_accounts = []
-        self.orgUnits = {}
+        self.rootOrgUnits = {}
+        self.childOrgUnits = {}
 
         self.fetch_accounts(environment)
         return
@@ -28,11 +29,11 @@ class Accounts(object):
         if self.environment.lower() == 'all' or self.environment.lower() == 'root':
             # requestObject = {}
             # self.fetchOrgRecord(requestObject)
-            self.envOrgUnitsSelection(rootOrgUnit, 'Roots')
+            self.envOrgUnitsSelection(rootOrgUnit, 'Roots', True)
         else:
             myOrgUnit = org.list_organizational_units_for_parent(
                 ParentId = rootOrgUnit['Roots'][0]['Id'])
-            self.envOrgUnitsSelection(myOrgUnit, 'OrganizationalUnits')
+            self.envOrgUnitsSelection(myOrgUnit, 'OrganizationalUnits', False)
             
         return
             
@@ -44,12 +45,11 @@ class Accounts(object):
                 break
         return exists
         
-    def envOrgUnitsSelection(self, myOrgUnit, key):
+    def envOrgUnitsSelection(self, myOrgUnit, key, isRoot):
         for orgUnit in myOrgUnit[key]:
-            
             if orgUnit['Name'].lower() == self.environment.lower() or 'all' == self.environment.lower():
                 #identify all accounts within child org
-                self.accountsByOrg(orgUnit)
+                self.accountsByOrg(orgUnit, isRoot)
             else:
                 # seek the environment through the hierarchy till its found
                 childOrgUnit = org.list_organizational_units_for_parent(
@@ -57,10 +57,14 @@ class Accounts(object):
                     
                 self.envOrgUnitsSelection(childOrgUnit, 'OrganizationalUnits')
     
-    def accountsByOrg(self,  orgUnit):
+    def accountsByOrg(self,  orgUnit, isRoot):
         parentId = orgUnit['Id']
         parentOrgName = orgUnit['Name']
-        self.orgUnits[parentId] = orgUnit
+        
+        if (isRoot):
+            self.rootOrgUnits[parentId] = orgUnit
+        else:
+            self.childOrgUnits[parentId] = orgUnit
         
         accounts = org.list_accounts_for_parent(ParentId = parentId)
         for ids in accounts['Accounts']:
@@ -78,7 +82,7 @@ class Accounts(object):
                     ParentId = orgUnit['Id'])
                     
             for childOrgUnit in childOrgUnits['OrganizationalUnits']:
-                self.accountsByOrg(childOrgUnit)
+                self.accountsByOrg(childOrgUnit, False)
                 
     def get_all_accounts(self):
         return self.all_accounts
